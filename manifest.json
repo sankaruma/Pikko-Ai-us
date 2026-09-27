@@ -1,6 +1,6 @@
 {
-  "name": "Nizhal Thunai - Neon Shadow Assistant",
-  "short_name": "Nizhal AI",
+  "name": "Pikko - Neon Shadow Assistant",
+  "short_name": "Pikko",
   "description": "Next-gen AI assistant for Instagram video ideas, anime storytelling, notes, reminders, tasks, and story drafts with multi-language AI.",
   "start_url": "./index.html",
   "scope": "./",

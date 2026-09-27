@@ -1,9 +1,8 @@
 /* ==========================================================================
-   NEON SHADOW ASSISTANT (NIZHAL THUNAI) - PWA CORE APPLICATION ENGINE
+   NEON SHADOW ASSISTANT (PIKKO) - PWA CORE APPLICATION ENGINE
    ========================================================================== */
 
 // Global App State
-const GEMINI_API_KEY = "AQ.Ab8RN6KVdtbpLs8CjFwNdFsgXgd45KeJ7QKQMMGdJWBv4hXqfQ";
 const state = {
     isUnlocked: false,
     isAuthenticated: false,
@@ -85,7 +84,7 @@ function initFirebaseAuth() {
             state.isAuthenticated = Boolean(user);
             if (user) {
                 unlockApp();
-                if (status) status.innerText = `Signed in as ${user.email || user.displayName || 'Nizhal Thunai user'}`;
+                if (status) status.innerText = `Signed in as ${user.email || user.displayName || 'Pikko user'}`;
             } else {
                 lockApp();
             }
@@ -217,7 +216,10 @@ function switchView(viewId) {
     if (viewId === 'view-notes') renderNotesUI();
     if (viewId === 'view-drafts') renderDraftsUI();
     if (viewId === 'view-ideas') renderIdeasHistoryUI();
-    if (viewId === 'view-settings') updateApiKeyBadge();
+    if (viewId === 'view-settings') {
+        loadAiApiKeysIntoSettings();
+        updateApiKeyBadge();
+    }
 }
 
 // ==========================================================================
@@ -516,7 +518,7 @@ async function generateAiResponse(query, media) {
         ? 'You are helping create Instagram Reel ideas, hooks, captions, and scripts. When you give a full script/idea (not for quick one-line questions), include a short timestamped "BGM & Sound Effects" note suggesting the mood of background music and where sound effects should hit, without naming exact copyrighted songs. For any comedy, meme, or reaction-related request or content with comedic/meme/reaction value, end your reply with a line in this exact format: "Meme template ku: https://searchmemes.in/q/KEYWORD" picking the single most fitting generic keyword (e.g. character name, actor name, or emotion/reaction word like "vadivelu", "goundamani", "shock", "cheems", "santhanam"), not an obscure exact phrase.' 
         : 'You are helping create anime story ideas, plot twists, power systems, and world-building.';
 
-    const systemPrompt = `You are Nizhal Thunai, an elite Creative Director & JARVIS-like co-creator for Tamil content creators and storytellers.
+    const systemPrompt = `You are Pikko, an elite Creative Director & JARVIS-like co-creator for Tamil content creators and storytellers.
 You communicate in sharp, witty, street-smart Tanglish (Tamil + English mixed).
 
 CORE MISSION:
@@ -656,7 +658,7 @@ YOUR PRIMARY JOB IS TO TRIGGER AND EXPAND THE USER'S CREATIVITY FIRST.
         <div class="message msg-ai">
             <div class="msg-avatar"><i class="fa-solid fa-user-ninja"></i></div>
             <div class="msg-body glass-card">
-                <div class="msg-sender">Nizhal Thunai (${lang}) <span class="time">${timeNow}</span></div>
+                <div class="msg-sender">Pikko (${lang}) <span class="time">${timeNow}</span></div>
                 <p>${linkify(reply).replace(/\n/g, '<br>')}</p>
             </div>
         </div>
@@ -895,7 +897,7 @@ function renderChatHistoryUI() {
             <div class="message msg-ai">
                 <div class="msg-avatar"><i class="fa-solid fa-user-ninja"></i></div>
                 <div class="msg-body glass-card">
-                    <div class="msg-sender">Nizhal Thunai</div>
+                    <div class="msg-sender">Pikko</div>
                     <p id="welcomeMessageText"></p>
                     <div class="prompt-suggestions" id="promptSuggestionsBox"></div>
                 </div>
@@ -925,7 +927,7 @@ function renderChatHistoryUI() {
                 <div class="message msg-ai">
                     <div class="msg-avatar"><i class="fa-solid fa-user-ninja"></i></div>
                     <div class="msg-body glass-card">
-                        <div class="msg-sender">Nizhal Thunai (${msg.lang}) <span class="time">${msg.time}</span></div>
+                        <div class="msg-sender">Pikko (${msg.lang}) <span class="time">${msg.time}</span></div>
                         <p>${linkify(msg.text).replace(/\n/g, '<br>')}</p>
                     </div>
                 </div>
@@ -1238,13 +1240,13 @@ async function generateContentIdea() {
 
     let systemPrompt = '';
     if (state.ideaMode === 'comedy') {
-        systemPrompt = 'You are Nizhal Thunai, a witty Tamil comedy dialogue writer for Instagram Reels. Generate a short "Call & Counter" comedy dialogue - Character A says a normal or formal opening line, and Character B replies with an unexpected, witty, casual counter-line that flips the tone for comedic effect. Example style - Character A: "Vanakkam da mapla" then Character B: "Comedy dai machan, even da counter dialogue!". Generate 2 to 3 such Call and Counter exchanges based on the topic given, clearly labeled Character A: and Character B: for each exchange. Whenever the content has comedic/meme/reaction value, end your reply with a line in this exact format: "Meme template ku: https://searchmemes.in/q/KEYWORD" picking the single most fitting generic keyword (e.g. actor name, character name, or reaction word like "vadivelu", "goundamani", "santhanam", "shock", "cheems"), not an obscure exact phrase. Reply in Tanglish (Tamil+English mixed, casual, punchy) unless the topic is written in pure English.';
+        systemPrompt = 'You are Pikko, a witty Tamil comedy dialogue writer for Instagram Reels. Generate a short "Call & Counter" comedy dialogue - Character A says a normal or formal opening line, and Character B replies with an unexpected, witty, casual counter-line that flips the tone for comedic effect. Example style - Character A: "Vanakkam da mapla" then Character B: "Comedy dai machan, even da counter dialogue!". Generate 2 to 3 such Call and Counter exchanges based on the topic given, clearly labeled Character A: and Character B: for each exchange. Whenever the content has comedic/meme/reaction value, end your reply with a line in this exact format: "Meme template ku: https://searchmemes.in/q/KEYWORD" picking the single most fitting generic keyword (e.g. actor name, character name, or reaction word like "vadivelu", "goundamani", "santhanam", "shock", "cheems"), not an obscure exact phrase. Reply in Tanglish (Tamil+English mixed, casual, punchy) unless the topic is written in pure English.';
     } else if (state.ideaMode === 'anime') {
-        systemPrompt = 'You are Nizhal Thunai, helping create original anime story ideas, plot twists, power systems, and world-building for a Tamil-set anime project. Keep it vivid, cinematic, and concise. Reply in Tanglish (Tamil+English mixed, casual) unless the topic is written in pure English.';
+        systemPrompt = 'You are Pikko, helping create original anime story ideas, plot twists, power systems, and world-building for a Tamil-set anime project. Keep it vivid, cinematic, and concise. Reply in Tanglish (Tamil+English mixed, casual) unless the topic is written in pure English.';
     } else if (state.ideaMode === 'dialogueid') {
-        systemPrompt = 'You are Nizhal Thunai, a pop-culture and content expert covering Tamil and Hollywood movies, anime, TV shows, and YouTube videos/vlogs. The user will give you a partial or paraphrased dialogue or line they remember from ANY of these sources. Based on your own knowledge (you do not have live internet access), try to identify: 1) The likely source (movie name, anime title, TV show, or type of YouTube content), 2) The character or person who might have said it, 3) The likely context of that scene or moment. Consider all possible source types, not just movies. Do NOT reproduce the exact dialogue lines verbatim - only describe the scene and give the source name and context in your own words. Be honest about your confidence level - if you are not sure, say so clearly and give your best guess rather than stating it as fact, since you cannot browse the web to verify. After your identification, ALWAYS end your reply with a short section titled "Where to find it" that gives: a ready-to-use YouTube search phrase (e.g. "YouTube-la search pannu: Vanakkam Da Mappalei movie scene"), and a ready-to-use Instagram search hashtag or term (e.g. "Insta-la search pannu: #vanakkamdamappalei"). Whenever the content has comedic/meme/reaction value, end your reply with a line in this exact format: "Meme template ku: https://searchmemes.in/q/KEYWORD" picking the single most fitting generic keyword (e.g. actor name, character name, or reaction word like "vadivelu", "goundamani", "shock", "cheems"), not an obscure exact phrase. Reply in Tanglish (Tamil+English mixed, casual) unless the topic is written in pure English.';
+        systemPrompt = 'You are Pikko, a pop-culture and content expert covering Tamil and Hollywood movies, anime, TV shows, and YouTube videos/vlogs. The user will give you a partial or paraphrased dialogue or line they remember from ANY of these sources. Based on your own knowledge (you do not have live internet access), try to identify: 1) The likely source (movie name, anime title, TV show, or type of YouTube content), 2) The character or person who might have said it, 3) The likely context of that scene or moment. Consider all possible source types, not just movies. Do NOT reproduce the exact dialogue lines verbatim - only describe the scene and give the source name and context in your own words. Be honest about your confidence level - if you are not sure, say so clearly and give your best guess rather than stating it as fact, since you cannot browse the web to verify. After your identification, ALWAYS end your reply with a short section titled "Where to find it" that gives: a ready-to-use YouTube search phrase (e.g. "YouTube-la search pannu: Vanakkam Da Mappalei movie scene"), and a ready-to-use Instagram search hashtag or term (e.g. "Insta-la search pannu: #vanakkamdamappalei"). Whenever the content has comedic/meme/reaction value, end your reply with a line in this exact format: "Meme template ku: https://searchmemes.in/q/KEYWORD" picking the single most fitting generic keyword (e.g. actor name, character name, or reaction word like "vadivelu", "goundamani", "shock", "cheems"), not an obscure exact phrase. Reply in Tanglish (Tamil+English mixed, casual) unless the topic is written in pure English.';
     } else {
-        systemPrompt = 'You are Nizhal Thunai, an expert Instagram Reels content strategist and audio/BGM director. Generate a viral Reel concept with a Hook (0-3 seconds), Value (3-12 seconds), and Call To Action (12-15 seconds), clearly labeled. After the script, ALWAYS add a section titled "BGM & Sound Effects Guide" that gives a timestamped breakdown of what audio to use at each moment - e.g. "0:00-0:03 - upbeat trending BGM starts, builds curiosity", "0:04 - short whoosh/transition sound effect", "0:12 - beat drop or bass hit to emphasize the twist/punchline", "0:13-0:15 - BGM fades slightly for the CTA voiceover to be clear". Suggest the general mood/genre of BGM (e.g. "trending upbeat pop", "suspenseful build-up", "comedic bell/boing sound") rather than exact copyrighted song names. By default, end your entire reply with a line in this exact format: "Meme template ku: https://searchmemes.in/q/KEYWORD" picking the single most fitting generic keyword (e.g. character name, actor name, or emotion/reaction word like "vadivelu", "goundamani", "shock", "cheems", "santhanam", etc.), not an obscure exact phrase. Reply in Tanglish (Tamil+English mixed, casual) unless the topic is written in pure English.';
+        systemPrompt = 'You are Pikko, an expert Instagram Reels content strategist and audio/BGM director. Generate a viral Reel concept with a Hook (0-3 seconds), Value (3-12 seconds), and Call To Action (12-15 seconds), clearly labeled. After the script, ALWAYS add a section titled "BGM & Sound Effects Guide" that gives a timestamped breakdown of what audio to use at each moment - e.g. "0:00-0:03 - upbeat trending BGM starts, builds curiosity", "0:04 - short whoosh/transition sound effect", "0:12 - beat drop or bass hit to emphasize the twist/punchline", "0:13-0:15 - BGM fades slightly for the CTA voiceover to be clear". Suggest the general mood/genre of BGM (e.g. "trending upbeat pop", "suspenseful build-up", "comedic bell/boing sound") rather than exact copyrighted song names. By default, end your entire reply with a line in this exact format: "Meme template ku: https://searchmemes.in/q/KEYWORD" picking the single most fitting generic keyword (e.g. character name, actor name, or emotion/reaction word like "vadivelu", "goundamani", "shock", "cheems", "santhanam", etc.), not an obscure exact phrase. Reply in Tanglish (Tamil+English mixed, casual) unless the topic is written in pure English.';
     }
 
     systemPrompt += MOBILE_FORMATTING_INSTRUCTION;
@@ -1452,166 +1454,265 @@ function saveFirebaseConfig() {
     }
 }
 
-function getGeminiApiKey() {
-    return localStorage.getItem('nizhal_gemini_api_key') || GEMINI_API_KEY;
-}
-
-async function callGeminiApi(requestBody, maxRetries = 3) {
-    const key = getGeminiApiKey();
-    // Supported Gemini Flash models in order of priority
-    const models = ['gemini-2.0-flash', 'gemini-1.5-flash'];
-    let modelIndex = 0;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        const model = models[modelIndex] || models[models.length - 1];
-        try {
-            // Clone requestBody to avoid mutating original object across retries
-            const payload = JSON.parse(JSON.stringify(requestBody));
-            payload.generationConfig = payload.generationConfig || {};
-            if (payload.generationConfig.temperature === undefined) payload.generationConfig.temperature = 0.9;
-            if (payload.generationConfig.presencePenalty === undefined) payload.generationConfig.presencePenalty = 0.6;
-            if (payload.generationConfig.frequencyPenalty === undefined) payload.generationConfig.frequencyPenalty = 0.5;
-
-            // Default Thinking Mode: include thinkingConfig for models supporting thinking ('gemini-2.5-flash' or 'gemini-flash-latest')
-            const supportsThinking = (model === 'gemini-2.5-flash' || model === 'gemini-flash-latest');
-            if (supportsThinking) {
-                if (!payload.generationConfig.thinkingConfig) {
-                    payload.generationConfig.thinkingConfig = { thinkingLevel: 'high' };
-                }
-            }
-
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-
-            let url = '';
-            if (key.startsWith('AQ.')) {
-                headers['Authorization'] = `Bearer ${key}`;
-                headers['x-goog-api-key'] = key;
-                url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-            } else {
-                url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-            }
-
-            let response = await fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(payload)
-            });
-            let data = await response.json();
-
-            // If API returns an error specifically about thinkingConfig / thinkingLevel not supported, retry once without it
-            if (!response.ok && data.error?.message && (
-                data.error.message.includes('thinkingConfig') ||
-                data.error.message.includes('thinkingLevel') ||
-                data.error.message.includes('thinking')
-            )) {
-                console.warn(`[Gemini API] thinkingConfig not supported for model '${model}'. Retrying without thinkingConfig...`);
-                if (payload.generationConfig) {
-                    delete payload.generationConfig.thinkingConfig;
-                }
-                response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
-                data = await response.json();
-            }
-
-            if (response.ok && data.candidates?.[0]?.content?.parts) {
-                const parts = data.candidates[0].content.parts;
-                const funcCallPart = parts.find(p => p.functionCall);
-                const text = parts.map(p => p.text).filter(Boolean).join('\n');
-                if (funcCallPart || text) {
-                    return {
-                        success: true,
-                        text: text,
-                        functionCall: funcCallPart ? funcCallPart.functionCall : null,
-                        rawParts: parts
-                    };
-                }
-            }
-
-            // 404 Not Found / Deprecated model: immediately fall back to the next supported model without retrying the broken name
-            if (response.status === 404 || data.error?.code === 404 || (data.error?.message && data.error.message.toLowerCase().includes('not found'))) {
-                console.warn(`[Gemini API] Model '${model}' returned 404 Not Found. Falling back to next model...`);
-                if (modelIndex < models.length - 1) {
-                    modelIndex++;
-                    continue;
-                }
-            }
-
-            // 503 Overloaded or 429 Rate Limit: retry with backoff and advance fallback model if available
-            if (response.status === 503 || response.status === 429 || data.error?.code === 503 || data.error?.code === 429) {
-                console.warn(`[Gemini API] Received ${response.status || data.error?.code} on attempt ${attempt + 1}. Retrying...`, data);
-                if (modelIndex < models.length - 1) {
-                    modelIndex++;
-                }
-                if (attempt < maxRetries) {
-                    await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
-                    continue;
-                }
-                if (response.status === 503 || data.error?.code === 503) {
-                    return { success: false, text: '⚠️ Google Gemini server temporary-ah overloaded-ah irukku (503). Oru 1-2 minutes wait pannitu thirumba try pannunga bro!' };
-                }
-                if (response.status === 429 || data.error?.code === 429) {
-                    return { success: false, text: '⚠️ Gemini API Free Daily Quota / Rate limit reach aayiduchu (429). aistudio.google.com-la pudhu API key create panni Settings-la podunga!' };
-                }
-            }
-
-            if (data.error?.message) {
-                return { success: false, text: `⚠️ Gemini Error (${data.error.code || response.status}): ${data.error.message}` };
-            }
-        } catch (err) {
-            console.error('[Gemini API network error]', err);
-            if (modelIndex < models.length - 1) {
-                modelIndex++;
-            }
-            if (attempt < maxRetries) {
-                await new Promise(r => setTimeout(r, 1200));
-                continue;
-            }
-        }
+function getAppToken(key) {
+    if (key === 'nizhal_gemini_key') {
+        return localStorage.getItem('nizhal_gemini_key') || localStorage.getItem('nizhal_gemini_api_key') || '';
     }
-
-    return { success: false, text: 'Network error bro, check your internet connection and try again!' };
+    return localStorage.getItem(key) || '';
 }
 
-function openApiKeyModal() {
-    const currentKey = localStorage.getItem('nizhal_gemini_api_key') || '';
-    const newKey = prompt('Enter your Google Gemini API Key (from aistudio.google.com):', currentKey);
-    if (newKey !== null) {
-        const trimmed = newKey.trim();
-        if (trimmed) {
-            localStorage.setItem('nizhal_gemini_api_key', trimmed);
-            alert('✅ Gemini API Key updated successfully!');
-            updateApiKeyBadge();
-        } else {
-            localStorage.removeItem('nizhal_gemini_api_key');
-            alert('🔄 Reset to default Gemini API Key.');
-            updateApiKeyBadge();
-        }
+function saveAppToken(key, value) {
+    if (value && value.trim()) {
+        localStorage.setItem(key, value.trim());
+    } else {
+        localStorage.removeItem(key);
     }
 }
 
-function resetApiKeyToDefault() {
-    localStorage.removeItem('nizhal_gemini_api_key');
-    alert('🔄 Reset to default Gemini API Key.');
+function getApiKey(provider) {
+    return getAppToken(`nizhal_${provider}_key`);
+}
+
+function saveAiApiKeys() {
+    const gemini = document.getElementById('geminiKeyInput')?.value;
+    const groq = document.getElementById('groqKeyInput')?.value;
+    const cerebras = document.getElementById('cerebrasKeyInput')?.value;
+    const mistral = document.getElementById('mistralKeyInput')?.value;
+
+    if (gemini !== undefined) saveAppToken('nizhal_gemini_key', gemini);
+    if (groq !== undefined) saveAppToken('nizhal_groq_key', groq);
+    if (cerebras !== undefined) saveAppToken('nizhal_cerebras_key', cerebras);
+    if (mistral !== undefined) saveAppToken('nizhal_mistral_key', mistral);
+
+    alert('✅ AI API Keys updated successfully!');
+    updateApiKeyBadge();
+}
+
+function loadAiApiKeysIntoSettings() {
+    const geminiEl = document.getElementById('geminiKeyInput');
+    const groqEl = document.getElementById('groqKeyInput');
+    const cerebrasEl = document.getElementById('cerebrasKeyInput');
+    const mistralEl = document.getElementById('mistralKeyInput');
+
+    if (geminiEl) geminiEl.value = getAppToken('nizhal_gemini_key');
+    if (groqEl) groqEl.value = getAppToken('nizhal_groq_key');
+    if (cerebrasEl) cerebrasEl.value = getAppToken('nizhal_cerebras_key');
+    if (mistralEl) mistralEl.value = getAppToken('nizhal_mistral_key');
     updateApiKeyBadge();
 }
 
 function updateApiKeyBadge() {
     const badge = document.getElementById('apiKeyStatusBadge');
-    if (badge) {
-        const custom = localStorage.getItem('nizhal_gemini_api_key');
-        if (custom) {
-            badge.className = 'badge badge-green';
-            badge.innerText = 'Active: Custom User Key';
-        } else {
-            badge.className = 'badge badge-purple';
-            badge.innerText = 'Active: Default Key';
+    if (!badge) return;
+
+    const active = [];
+    if (getAppToken('nizhal_gemini_key')) active.push('Gemini');
+    if (getAppToken('nizhal_groq_key')) active.push('Groq');
+    if (getAppToken('nizhal_cerebras_key')) active.push('Cerebras');
+    if (getAppToken('nizhal_mistral_key')) active.push('Mistral');
+
+    if (active.length > 0) {
+        badge.className = 'badge badge-green';
+        badge.innerText = `Active Keys: ${active.join(', ')}`;
+    } else {
+        badge.className = 'badge badge-purple';
+        badge.innerText = 'No API Keys Set';
+    }
+}
+
+// --------------------------------------------------------------------------
+// Direct Multi-Provider API Call Functions
+// --------------------------------------------------------------------------
+
+async function callGeminiDirect(contents, systemInstruction, generationConfig, tools) {
+    const geminiKey = getAppToken('nizhal_gemini_key');
+    if (!geminiKey) return { success: false, error: 'No Gemini API key set' };
+
+    const payload = { contents, systemInstruction, generationConfig };
+    if (tools) payload.tools = tools;
+
+    const headers = { 'Content-Type': 'application/json' };
+    let url = '';
+    if (geminiKey.startsWith('AQ.')) {
+        headers['Authorization'] = `Bearer ${geminiKey}`;
+        headers['x-goog-api-key'] = geminiKey;
+        url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
+    } else {
+        url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + geminiKey;
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (response.ok && data.candidates?.[0]?.content?.parts) {
+        const parts = data.candidates[0].content.parts;
+        const funcCallPart = parts.find(p => p.functionCall);
+        const text = parts.map(p => p.text).filter(Boolean).join('\n');
+        if (funcCallPart || text) {
+            return {
+                success: true,
+                text: text,
+                functionCall: funcCallPart ? funcCallPart.functionCall : null,
+                rawParts: parts
+            };
         }
     }
+    return { success: false, data, status: response.status };
+}
+
+async function callGroqDirect(messages, temperature = 0.7, max_tokens = 1024) {
+    const groqKey = getAppToken('nizhal_groq_key');
+    if (!groqKey) return { success: false, error: 'No Groq API key set' };
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + groqKey
+        },
+        body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: messages,
+            temperature: temperature,
+            max_tokens: max_tokens
+        })
+    });
+    const data = await response.json();
+    if (response.ok && data.choices?.[0]?.message?.content) {
+        return { success: true, text: data.choices[0].message.content };
+    }
+    return { success: false, data, status: response.status };
+}
+
+async function callCerebrasDirect(messages, temperature = 0.7, max_tokens = 1024) {
+    const cerebrasKey = getAppToken('nizhal_cerebras_key');
+    if (!cerebrasKey) return { success: false, error: 'No Cerebras API key set' };
+
+    const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + cerebrasKey
+        },
+        body: JSON.stringify({
+            model: 'qwen-3.8-27b',
+            messages: messages,
+            temperature: temperature,
+            max_tokens: max_tokens
+        })
+    });
+    const data = await response.json();
+    if (response.ok && data.choices?.[0]?.message?.content) {
+        return { success: true, text: data.choices[0].message.content };
+    }
+    return { success: false, data, status: response.status };
+}
+
+async function callMistralDirect(messages, temperature = 0.7, max_tokens = 1024) {
+    const mistralKey = getAppToken('nizhal_mistral_key');
+    if (!mistralKey) return { success: false, error: 'No Mistral API key set' };
+
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + mistralKey
+        },
+        body: JSON.stringify({
+            model: 'mistral-small-latest',
+            messages: messages,
+            temperature: temperature,
+            max_tokens: max_tokens
+        })
+    });
+    const data = await response.json();
+    if (response.ok && data.choices?.[0]?.message?.content) {
+        return { success: true, text: data.choices[0].message.content };
+    }
+    return { success: false, data, status: response.status };
+}
+
+// --------------------------------------------------------------------------
+// Orchestrator Fallback Engine (Gemini -> Groq -> Cerebras -> Mistral)
+// --------------------------------------------------------------------------
+
+async function callGeminiApi(requestBody) {
+    const contents = requestBody.contents || [];
+    const systemInstruction = requestBody.systemInstruction;
+    const generationConfig = requestBody.generationConfig;
+    const tools = requestBody.tools;
+    const hasImage = contents.some(c => c.parts && c.parts.some(p => p.inlineData));
+
+    // Provider 1: Gemini
+    try {
+        const res = await callGeminiDirect(contents, systemInstruction, generationConfig, tools);
+        if (res.success) return res;
+        console.warn('[AI Fallback Chain] Gemini call failed:', res);
+    } catch (err) {
+        console.warn('[AI Fallback Chain] Gemini exception:', err);
+    }
+
+    // Skip fallbacks if image is present
+    if (hasImage) {
+        return { success: false, text: '⚠️ Image analysis failed on Gemini. Multi-modal image input is only supported by Gemini.' };
+    }
+
+    // Convert contents & systemInstruction into OpenAI-compatible messages format
+    const systemPromptText = systemInstruction?.parts?.[0]?.text || '';
+    const messages = [];
+    if (systemPromptText) {
+        messages.push({ role: 'system', content: systemPromptText });
+    }
+    contents.forEach(item => {
+        const role = item.role === 'model' ? 'assistant' : 'user';
+        const textParts = (item.parts || []).map(p => p.text).filter(Boolean).join('\n');
+        if (textParts) {
+            messages.push({ role, content: textParts });
+        }
+    });
+
+    const temp = generationConfig?.temperature || 0.7;
+
+    // Provider 2: Groq (llama-3.3-70b-versatile)
+    if (getAppToken('nizhal_groq_key')) {
+        try {
+            console.log('[AI Fallback Chain] Trying Groq (llama-3.3-70b-versatile)...');
+            const res = await callGroqDirect(messages, temp, 1024);
+            if (res.success) return res;
+            console.warn('[AI Fallback Chain] Groq failed:', res);
+        } catch (err) {
+            console.warn('[AI Fallback Chain] Groq exception:', err);
+        }
+    }
+
+    // Provider 3: Cerebras (qwen-3.8-27b)
+    if (getAppToken('nizhal_cerebras_key')) {
+        try {
+            console.log('[AI Fallback Chain] Trying Cerebras (qwen-3.8-27b)...');
+            const res = await callCerebrasDirect(messages, temp, 1024);
+            if (res.success) return res;
+            console.warn('[AI Fallback Chain] Cerebras failed:', res);
+        } catch (err) {
+            console.warn('[AI Fallback Chain] Cerebras exception:', err);
+        }
+    }
+
+    // Provider 4: Mistral (mistral-small-latest)
+    if (getAppToken('nizhal_mistral_key')) {
+        try {
+            console.log('[AI Fallback Chain] Trying Mistral (mistral-small-latest)...');
+            const res = await callMistralDirect(messages, temp, 1024);
+            if (res.success) return res;
+            console.warn('[AI Fallback Chain] Mistral failed:', res);
+        } catch (err) {
+            console.warn('[AI Fallback Chain] Mistral exception:', err);
+        }
+    }
+
+    return { success: false, text: '⚠️ All AI providers failed or no valid API key configured. Please configure your API keys in Settings.' };
 }
 
 function linkify(text) {

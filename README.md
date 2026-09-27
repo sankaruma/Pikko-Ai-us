@@ -1,4 +1,4 @@
-# 🤖 Neon Shadow Assistant (Nizhal Thunai - My AI Kaipulla)
+# 🤖 Neon Shadow Assistant (Pikko - My AI Kaipulla)
 
 A Cyberpunk / Neon themed Progressive Web App (PWA) AI Assistant built with Vanilla HTML5, CSS3, and JavaScript. Powered by Google Gemini AI and YouTube Data API with security PIN lock, voice synthesis, speech recognition, and productivity management tools.
 

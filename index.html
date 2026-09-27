@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nizhal Thunai - Neon Shadow AI Assistant (PWA)</title>
+    <title>Pikko - Neon Shadow AI Assistant (PWA)</title>
     
     <!-- PWA & SEO Meta Tags -->
-    <meta name="description" content="Nizhal Thunai (Neon Shadow Assistant) - AI PWA for Insta Video Ideas, Anime Storytelling, Voice Input, Notes, Reminders, Tasks, and Story Drafts with Firebase & Multi-language AI.">
+    <meta name="description" content="Pikko (Neon Shadow Assistant) - AI PWA for Insta Video Ideas, Anime Storytelling, Voice Input, Notes, Reminders, Tasks, and Story Drafts with Firebase & Multi-language AI.">
     <meta name="theme-color" content="#F7F5F0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Nizhal AI">
+    <meta name="apple-mobile-web-app-title" content="Pikko">
     <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
     <link rel="icon" href="https://www.gstatic.com/labs-code/stitch/favicon-32x32.png">
 
@@ -37,7 +37,7 @@
         <div id="pwaBanner" class="pwa-install-banner glass-card" style="display: none;">
             <div class="banner-text">
                 <i class="fa-solid fa-cloud-arrow-down text-neon"></i>
-                <span>Install <strong>Nizhal Thunai</strong> as a standalone PWA!</span>
+                <span>Install <strong>Pikko</strong> as a standalone PWA!</span>
             </div>
             <div class="banner-actions">
                 <button class="btn btn-primary btn-sm" id="pwaInstallBtn"><i class="fa-solid fa-download"></i> Install</button>
@@ -52,8 +52,8 @@
                     <i class="fa-solid fa-user-ninja text-neon"></i>
                 </div>
                 <div class="brand-text">
-                    <span class="brand-name">Nizhal Thunai</span>
-                    <span class="brand-tag">PWA v2.5 • நிழல் துணை</span>
+                    <span class="brand-name">Pikko</span>
+                    <span class="brand-tag">PWA v2.5 • Pikko AI</span>
                 </div>
             </div>
 
@@ -114,7 +114,7 @@
                         <div class="message msg-ai">
                             <div class="msg-avatar"><i class="fa-solid fa-user-ninja"></i></div>
                             <div class="msg-body glass-card">
-                                <div class="msg-sender">Nizhal Thunai <span class="time">12:52 PM</span></div>
+                                <div class="msg-sender">Pikko <span class="time">12:52 PM</span></div>
                                 <p id="welcomeMessageText">Hey! Insta ku videos plan pannalama? Idea sollu, naan help pannuren.</p>
                                 
                                 <div class="prompt-suggestions" id="promptSuggestionsBox">
@@ -277,7 +277,7 @@
                                 <button class="chip" onclick="aiExtendStory('twist')">🌀 Character Plot Twist</button>
                             </div>
 
-                            <textarea id="draftBodyInput" placeholder="Start writing your anime script or story chapter here... Nizhal AI will auto-detect Tamil, Tanglish, or English..." oninput="handleDraftBodyInput()"></textarea>
+                            <textarea id="draftBodyInput" placeholder="Start writing your anime script or story chapter here... Pikko will auto-detect Tamil, Tanglish, or English..." oninput="handleDraftBodyInput()"></textarea>
                         </div>
                     </div>
                 </div>
@@ -357,16 +357,29 @@
                     </div>
 
                     <div class="grid-2">
-                        <!-- Gemini API Key Settings -->
+                        <!-- AI Providers & API Keys Settings -->
                         <div class="glass-card">
-                            <h3><i class="fa-solid fa-wand-magic-sparkles text-cyan"></i> Gemini AI Configuration</h3>
-                            <p class="text-dim">Update or enter a custom Google Gemini API Key if daily quota expires.</p>
+                            <h3><i class="fa-solid fa-wand-magic-sparkles text-cyan"></i> AI Providers Configuration</h3>
+                            <p class="text-dim">Configure API Keys for fallback chain (Gemini → Groq → Cerebras → Mistral).</p>
                             <div class="mt-3">
-                                <span class="badge badge-purple" id="apiKeyStatusBadge">Active: Default Key</span>
+                                <label class="input-label" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-brands fa-google text-cyan"></i> Gemini API Key</label>
+                                <input type="password" id="geminiKeyInput" class="cyber-input" style="padding: 6px 10px; margin-top: 4px;" placeholder="Gemini Key (nizhal_gemini_key)">
                             </div>
-                            <div class="mt-3">
-                                <button class="btn btn-secondary" onclick="openApiKeyModal()"><i class="fa-solid fa-key"></i> Edit Gemini API Key</button>
-                                <button class="btn btn-outline ml-2" onclick="resetApiKeyToDefault()"><i class="fa-solid fa-rotate-left"></i> Reset Key</button>
+                            <div class="mt-2">
+                                <label class="input-label" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-bolt text-yellow"></i> Groq API Key</label>
+                                <input type="password" id="groqKeyInput" class="cyber-input" style="padding: 6px 10px; margin-top: 4px;" placeholder="Groq Key (nizhal_groq_key)">
+                            </div>
+                            <div class="mt-2">
+                                <label class="input-label" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-brain text-purple"></i> Cerebras API Key</label>
+                                <input type="password" id="cerebrasKeyInput" class="cyber-input" style="padding: 6px 10px; margin-top: 4px;" placeholder="Cerebras Key (nizhal_cerebras_key)">
+                            </div>
+                            <div class="mt-2">
+                                <label class="input-label" style="font-size: 0.85rem; font-weight: 600;"><i class="fa-solid fa-wind text-neon"></i> Mistral API Key</label>
+                                <input type="password" id="mistralKeyInput" class="cyber-input" style="padding: 6px 10px; margin-top: 4px;" placeholder="Mistral Key (nizhal_mistral_key)">
+                            </div>
+                            <div class="mt-3" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                                <button class="btn btn-secondary" onclick="saveAiApiKeys()"><i class="fa-solid fa-floppy-disk"></i> Save API Keys</button>
+                                <span class="badge badge-purple" id="apiKeyStatusBadge">Active Keys</span>
                             </div>
                         </div>
 
@@ -430,7 +443,7 @@
                 <div class="lock-icon-glow">
                     <i class="fa-solid fa-user-shield"></i>
                 </div>
-                <h2>Sign in to Nizhal Thunai</h2>
+                <h2>Sign in to Pikko</h2>
                 <p class="text-dim">Use the same account on your phone and laptop.</p>
                 <form id="firebaseEmailAuthForm" class="auth-form">
                     <input type="email" id="firebaseEmailInput" class="cyber-input" placeholder="Email address" autocomplete="email" required>
@@ -444,7 +457,7 @@
                 <div class="lock-icon-glow">
                     <i class="fa-solid fa-lock" id="pinLockIcon"></i>
                 </div>
-                <h2>Nizhal Thunai Security</h2>
+                <h2>Pikko Security</h2>
                 <p class="text-dim">Enter 4-Digit Security PIN to Unlock</p>
 
                 <!-- PIN Visual Dots -->

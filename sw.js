@@ -1,8 +1,8 @@
 /* ==========================================================================
-   NIZHAL THUNAI - SERVICE WORKER (PWA Offline & Push Notifications)
+   PIKKO - SERVICE WORKER (PWA Offline & Push Notifications)
    ========================================================================== */
 
-const CACHE_NAME = 'nizhal-thunai-v8';
+const CACHE_NAME = 'pikko-v10';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -80,7 +80,7 @@ self.addEventListener('fetch', (event) => {
 // Push Notification Handling
 self.addEventListener('push', (event) => {
     const data = event.data ? event.data.json() : {};
-    const title = data.title || '⏰ Nizhal Thunai Reminder';
+    const title = data.title || '⏰ Pikko Reminder';
     const options = {
         body: data.body || 'You have an upcoming note or task reminder!',
         icon: 'https://www.gstatic.com/labs-code/stitch/favicon-192x192.png',
