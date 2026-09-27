@@ -665,7 +665,7 @@ YOUR PRIMARY JOB IS TO TRIGGER AND EXPAND THE USER'S CREATIVITY FIRST.
 
     let res;
     try {
-        res = await callGeminiWithFriendlyRetry(requestBody);
+        res = await callGeminiApi(requestBody);
     } catch (error) {
         voiceRequestPending = false;
         if (error.code === 'non_json_response') {
@@ -1487,7 +1487,7 @@ async function generateContentIdea() {
     };
 
     try {
-        const res = await callGeminiWithFriendlyRetry(requestBody);
+        const res = await callGeminiApi(requestBody);
         const reply = res.text;
 
         const newIdea = {
@@ -1764,14 +1764,7 @@ async function callGeminiDirect(contents, systemInstruction, generationConfig, t
     if (tools) payload.tools = tools;
 
     const headers = { 'Content-Type': 'application/json' };
-    let url = '';
-    if (geminiKey.startsWith('AQ.')) {
-        headers['Authorization'] = `Bearer ${geminiKey}`;
-        headers['x-goog-api-key'] = geminiKey;
-        url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
-    } else {
-        url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + geminiKey;
-    }
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + geminiKey;
 
     const response = await fetch(url, {
         method: 'POST',
