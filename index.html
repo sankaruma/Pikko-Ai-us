@@ -24,11 +24,8 @@
     <!-- App Stylesheet -->
     <link rel="stylesheet" href="style.css">
 
-    <!-- Firebase Compatibility SDKs -->
+    <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <script>window.NIZHAL_FIREBASE_CONFIG = window.NIZHAL_FIREBASE_CONFIG || null;</script>
 </head>
 <body class="dark-theme">
     <div id="app" class="app-viewport">
@@ -105,6 +102,7 @@
                         <div class="chat-actions-top">
                             <button class="icon-btn" title="📝 View Tasks List" onclick="switchView('view-tasks')"><i class="fa-solid fa-list-check text-neon"></i></button>
                             <button class="icon-btn" title="Voice Response Speech Toggle" onclick="toggleVoiceSpeech()"><i class="fa-solid fa-volume-xmark text-dim" id="speechToggleIcon"></i></button>
+                            <button class="icon-btn" id="voiceStopBtn" title="Stop voice playback" onclick="stopVoicePlayback()"><i class="fa-solid fa-stop"></i></button>
                             <button class="icon-btn" title="Clear Chat History" onclick="clearChatHistory()"><i class="fa-solid fa-trash-can"></i></button>
                         </div>
                     </div>
@@ -138,11 +136,29 @@
 
                     <!-- Chat Input Controls Bar -->
                     <div class="chat-input-bar glass-card">
-                        <!-- Media File Upload Input Button -->
-                        <label for="mediaUploadInput" class="icon-btn-upload" title="Upload Image or Video for AI Analysis">
-                            <i class="fa-solid fa-paperclip"></i>
+                        <!-- Tools Menu Trigger -->
+                        <div class="tools-menu-container">
+                            <button type="button" class="icon-btn-upload" title="Open chat tools" onclick="toggleToolsMenu(event)">
+                                <i class="fa-solid fa-paperclip"></i>
+                            </button>
+                            <div class="tools-menu" id="toolsMenu" role="menu" aria-hidden="true">
+                                <button type="button" class="tools-menu-item" role="menuitem" onclick="selectToolsMenuItem('attach')">
+                                    <i class="fa-solid fa-camera"></i>
+                                    <span>Attach Photo/Video</span>
+                                </button>
+                                <button type="button" class="tools-menu-item" role="menuitem" onclick="selectToolsMenuItem('coach')">
+                                    <i class="fa-solid fa-lightbulb"></i>
+                                    <span>Coach Mode</span>
+                                    <i class="fa-solid fa-check tools-menu-check" id="toolsCoachCheck"></i>
+                                </button>
+                                <button type="button" class="tools-menu-item" role="menuitem" onclick="selectToolsMenuItem('voice')">
+                                    <i class="fa-solid fa-volume-high"></i>
+                                    <span>Voice Output</span>
+                                    <i class="fa-solid fa-check tools-menu-check" id="toolsVoiceCheck"></i>
+                                </button>
+                            </div>
                             <input type="file" id="mediaUploadInput" accept="image/*,video/*" onchange="handleMediaUpload(event)">
-                        </label>
+                        </div>
 
                         <!-- Voice Mic Button (Web Speech API) -->
                         <button class="icon-btn-mic" id="micBtn" title="Speak to input text" onclick="toggleVoiceRecording()">
