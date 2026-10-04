@@ -77,6 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupReminderNotificationChecker();
     setupToolsMenu();
     setupGlobalErrorHandlers();
+    setupAuthHandlers();
     syncVoiceSpeechIcon();
     renderPromptSuggestions();
     renderChatHistoryUI();
@@ -84,6 +85,108 @@ document.addEventListener('DOMContentLoaded', () => {
     
     lockApp();
 });
+
+function setupAuthHandlers() {
+    const googleBtn = document.getElementById('firebaseGoogleAuthBtn');
+    const emailForm = document.getElementById('firebaseEmailAuthForm');
+    const authStatus = document.getElementById('firebaseAuthStatus');
+
+    if (googleBtn) {
+        googleBtn.addEventListener('click', async () => {
+            if (authStatus) authStatus.innerText = 'Opening Google sign-in...';
+            try {
+                if (state.usingSupabase && state.supabaseClient?.auth) {
+                    const { error } = await state.supabaseClient.auth.signInWithOAuth({
+                        provider: 'google',
+                        options: { redirectTo: window.location.href }
+                    });
+                    if (error && authStatus) authStatus.innerText = error.message;
+                } else if (typeof firebase !== 'undefined' && firebase.auth) {
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    const result = await firebase.auth().signInWithPopup(provider);
+                    if (result?.user) {
+                        state.isAuthenticated = true;
+                        unlockApp();
+                        if (authStatus) authStatus.innerText = `Signed in as ${result.user.email || result.user.displayName}`;
+                        syncUserSettingsFromCloud();
+                    }
+                } else {
+                    if (authStatus) authStatus.innerText = 'Supabase or Firebase connection required for Google sign-in.';
+                }
+            } catch (err) {
+                if (authStatus) authStatus.innerText = redactError(err.message || err);
+            }
+        });
+    }
+
+    if (emailForm) {
+        emailForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('firebaseEmailInput')?.value?.trim();
+            const password = document.getElementById('firebasePasswordInput')?.value;
+            if (!email || !password) return;
+
+            if (authStatus) authStatus.innerText = 'Signing in...';
+
+            try {
+                if (state.usingSupabase && state.supabaseClient?.auth) {
+                    let { data, error } = await state.supabaseClient.auth.signInWithPassword({ email, password });
+                    if (error && (error.message?.includes('Invalid login') || error.status === 400)) {
+                        const signUpRes = await state.supabaseClient.auth.signUp({ email, password });
+                        data = signUpRes.data;
+                        error = signUpRes.error;
+                    }
+                    if (error) {
+                        if (authStatus) authStatus.innerText = error.message;
+                    } else if (data?.user) {
+                        state.isAuthenticated = true;
+                        unlockApp();
+                        if (authStatus) authStatus.innerText = `Signed in as ${data.user.email}`;
+                        syncFromCloud();
+                        syncUserSettingsFromCloud();
+                    }
+                } else if (typeof firebase !== 'undefined' && firebase.auth) {
+                    try {
+                        const userCred = await firebase.auth().signInWithEmailAndPassword(email, password);
+                        if (userCred?.user) {
+                            state.isAuthenticated = true;
+                            unlockApp();
+                            if (authStatus) authStatus.innerText = `Signed in as ${userCred.user.email}`;
+                            syncUserSettingsFromCloud();
+                        }
+                    } catch (fbErr) {
+                        if (fbErr.code === 'auth/user-not-found') {
+                            const createCred = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                            if (createCred?.user) {
+                                state.isAuthenticated = true;
+                                unlockApp();
+                                if (authStatus) authStatus.innerText = `Signed in as ${createCred.user.email}`;
+                                syncUserSettingsFromCloud();
+                            }
+                        } else if (authStatus) {
+                            authStatus.innerText = fbErr.message;
+                        }
+                    }
+                } else {
+                    if (authStatus) authStatus.innerText = 'Supabase or Firebase connection required for auth.';
+                }
+            } catch (err) {
+                if (authStatus) authStatus.innerText = redactError(err.message || err);
+            }
+        });
+    }
+
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+        firebase.auth().onAuthStateChanged(user => {
+            if (user) {
+                state.isAuthenticated = true;
+                unlockApp();
+                if (authStatus) authStatus.innerText = `Signed in as ${user.email || user.displayName || 'Pikko user'}`;
+                syncUserSettingsFromCloud();
+            }
+        });
+    }
+}
 
 function redactError(error) {
     const message = error instanceof Error ? error.message : String(error || 'Unknown error');
@@ -1610,6 +1713,36 @@ async function initSupabaseIfConfigured() {
                 }
 
                 syncFromCloud();
+                syncUserSettingsFromCloud();
+
+                if (state.supabaseClient.auth && typeof state.supabaseClient.auth.onAuthStateChange === 'function') {
+                    state.supabaseClient.auth.getUser?.().then(({ data }) => {
+                        if (data?.user) {
+                            state.isAuthenticated = true;
+                            unlockApp();
+                            const authStatus = document.getElementById('firebaseAuthStatus');
+                            if (authStatus) authStatus.innerText = `Signed in as ${data.user.email || 'Pikko user'}`;
+                            syncFromCloud();
+                            syncUserSettingsFromCloud();
+                        }
+                    }).catch(() => {});
+
+                    state.supabaseClient.auth.onAuthStateChange((event, session) => {
+                        if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+                            if (session?.user) {
+                                state.isAuthenticated = true;
+                                unlockApp();
+                                const authStatus = document.getElementById('firebaseAuthStatus');
+                                if (authStatus) authStatus.innerText = `Signed in as ${session.user.email || 'Pikko user'}`;
+                            }
+                            syncFromCloud();
+                            syncUserSettingsFromCloud();
+                        } else if (event === 'SIGNED_OUT') {
+                            state.isAuthenticated = false;
+                            lockApp();
+                        }
+                    });
+                }
             }
         } catch (e) {
             console.log('[Supabase Init Error]', e);
@@ -1645,6 +1778,91 @@ async function syncFromCloud() {
         renderChatHistoryUI();
     } catch (e) {
         console.log('[Supabase Sync Error]', e);
+    }
+}
+
+async function syncUserSettingsFromCloud() {
+    if (!state.usingSupabase || !state.supabaseClient) return;
+    try {
+        let userId = null;
+        try {
+            if (state.supabaseClient.auth && typeof state.supabaseClient.auth.getUser === 'function') {
+                const { data: authData } = await state.supabaseClient.auth.getUser();
+                if (authData?.user) userId = authData.user.id;
+            }
+        } catch (e) {}
+
+        let query = state.supabaseClient.from('user_settings').select('*');
+        if (userId) {
+            query = query.eq('user_id', userId);
+        }
+
+        const { data: rows, error } = await query;
+        if (error) {
+            console.log('[Supabase Settings Sync Warning]', error.message || error);
+        } else if (rows && rows.length > 0) {
+            rows.forEach(row => {
+                if (row.key && row.value !== undefined) {
+                    saveAppToken(row.key, row.value);
+                }
+                if (row.setting_key && row.setting_value !== undefined) {
+                    saveAppToken(row.setting_key, row.setting_value);
+                }
+
+                const geminiVal = row.nizhal_gemini_key || row.gemini_key;
+                const groqVal = row.nizhal_groq_key || row.groq_key;
+                const cerebrasVal = row.nizhal_cerebras_key || row.cerebras_key;
+                const mistralVal = row.nizhal_mistral_key || row.mistral_key;
+
+                if (geminiVal) saveAppToken('nizhal_gemini_key', geminiVal);
+                if (groqVal) saveAppToken('nizhal_groq_key', groqVal);
+                if (cerebrasVal) saveAppToken('nizhal_cerebras_key', cerebrasVal);
+                if (mistralVal) saveAppToken('nizhal_mistral_key', mistralVal);
+            });
+
+            loadAiApiKeysIntoSettings();
+            updateApiKeyBadge();
+        }
+    } catch (e) {
+        console.log('[Supabase Settings Sync Exception]', e);
+    }
+}
+
+async function saveUserSettingsToCloud() {
+    if (!state.usingSupabase || !state.supabaseClient) return;
+    try {
+        let userId = 'default_user';
+        try {
+            if (state.supabaseClient.auth && typeof state.supabaseClient.auth.getUser === 'function') {
+                const { data: authData } = await state.supabaseClient.auth.getUser();
+                if (authData?.user) userId = authData.user.id;
+            }
+        } catch (e) {}
+
+        const gemini = getAppToken('nizhal_gemini_key');
+        const groq = getAppToken('nizhal_groq_key');
+        const cerebras = getAppToken('nizhal_cerebras_key');
+        const mistral = getAppToken('nizhal_mistral_key');
+
+        const payload = {
+            user_id: userId,
+            nizhal_gemini_key: gemini,
+            nizhal_groq_key: groq,
+            nizhal_cerebras_key: cerebras,
+            nizhal_mistral_key: mistral,
+            gemini_key: gemini,
+            groq_key: groq,
+            cerebras_key: cerebras,
+            mistral_key: mistral,
+            updated_at: new Date().toISOString()
+        };
+
+        const { error } = await state.supabaseClient.from('user_settings').upsert(payload, { onConflict: 'user_id' });
+        if (error) {
+            console.log('[Supabase Settings Save Warning]', error.message || error);
+        }
+    } catch (e) {
+        console.log('[Supabase Settings Save Exception]', e);
     }
 }
 
@@ -1697,7 +1915,7 @@ function getApiKey(provider) {
     return getAppToken(`nizhal_${provider}_key`);
 }
 
-function saveAiApiKeys() {
+async function saveAiApiKeys() {
     const gemini = document.getElementById('geminiKeyInput')?.value;
     const groq = document.getElementById('groqKeyInput')?.value;
     const cerebras = document.getElementById('cerebrasKeyInput')?.value;
@@ -1707,6 +1925,10 @@ function saveAiApiKeys() {
     if (groq !== undefined) saveAppToken('nizhal_groq_key', groq);
     if (cerebras !== undefined) saveAppToken('nizhal_cerebras_key', cerebras);
     if (mistral !== undefined) saveAppToken('nizhal_mistral_key', mistral);
+
+    if (state.usingSupabase && state.supabaseClient) {
+        await saveUserSettingsToCloud();
+    }
 
     alert('✅ AI API Keys updated successfully!');
     updateApiKeyBadge();
@@ -1724,11 +1946,16 @@ function loadAiApiKeysIntoSettings() {
     if (mistralEl) mistralEl.value = getAppToken('nizhal_mistral_key');
 }
 
-function resetApiKeyToDefault() {
+async function resetApiKeyToDefault() {
     saveAppToken('nizhal_gemini_key', '');
     saveAppToken('nizhal_groq_key', '');
     saveAppToken('nizhal_cerebras_key', '');
     saveAppToken('nizhal_mistral_key', '');
+
+    if (state.usingSupabase && state.supabaseClient) {
+        await saveUserSettingsToCloud();
+    }
+
     alert('🔄 AI API Keys removed.');
     updateApiKeyBadge();
 }
