@@ -1980,115 +1980,313 @@ function updateApiKeyBadge() {
 }
 
 // --------------------------------------------------------------------------
-// Direct Multi-Provider API Call Functions
+// Direct Multi-Provider AI Engine (Auto-detect Gemini, Retry, Groq Fallback)
 // --------------------------------------------------------------------------
 
-async function callGeminiDirect(contents, systemInstruction, generationConfig, tools) {
-    const geminiKey = getAppToken('nizhal_gemini_key');
-    if (!geminiKey) return { success: false, error: 'No Gemini API key set' };
+function redactAiKey(text) {
+    return String(text || '')
+        .replace(/([?&]key=)[^&\s]+/gi, '$1***')
+        .replace(/AIza[\w-]+/g, '***');
+}
+
+function logAiFailure(provider, model, status, errorMessage) {
+    let cleanMsg = errorMessage;
+    if (typeof cleanMsg === 'object' && cleanMsg !== null) {
+        cleanMsg = cleanMsg.message || cleanMsg.error || JSON.stringify(cleanMsg);
+    }
+    cleanMsg = redactAiKey(String(cleanMsg || 'Request failed'));
+    console.warn('[AI]', String(provider), String(model), status || 'ERROR', cleanMsg);
+}
+
+async function getGeminiModels(geminiKey) {
+    const CACHE_KEY = 'pikko_gemini_models';
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    const FALLBACK_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+
+    try {
+        const cachedRaw = localStorage.getItem(CACHE_KEY);
+        if (cachedRaw) {
+            const cached = JSON.parse(cachedRaw);
+            if (cached && Array.isArray(cached.models) && cached.models.length > 0) {
+                const age = Date.now() - (cached.timestamp || 0);
+                if (age >= 0 && age < TWENTY_FOUR_HOURS) {
+                    return cached.models;
+                }
+            }
+        }
+    } catch (e) {}
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models?key=' + geminiKey;
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) {
+            let errMsg = `HTTP ${response.status}`;
+            try {
+                const errJson = await response.json();
+                if (errJson?.error?.message) errMsg = errJson.error.message;
+            } catch (e) {}
+            logAiFailure('Gemini', 'models-list', response.status, errMsg);
+            return FALLBACK_MODELS;
+        }
+
+        const data = await response.json();
+        const rawList = Array.isArray(data.models) ? data.models : [];
+
+        const excludeKeywords = ['image', 'tts', 'live', 'embedding', 'audio', 'thinking'];
+
+        const validModels = rawList.filter(m => {
+            const methods = Array.isArray(m.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
+            if (!methods.includes('generateContent')) return false;
+
+            const name = (m.name || '').toLowerCase();
+            if (!name.includes('flash')) return false;
+            if (excludeKeywords.some(kw => name.includes(kw))) return false;
+            return true;
+        });
+
+        function getModelRank(name) {
+            const lower = name.toLowerCase();
+            if (lower.includes('preview')) {
+                return lower.includes('lite') ? 3 : 4;
+            }
+            if (lower.includes('lite')) return 1;
+            return 2;
+        }
+
+        const cleanNames = validModels.map(m => (m.name || '').replace(/^models\//, ''));
+        cleanNames.sort((a, b) => {
+            const rankDiff = getModelRank(a) - getModelRank(b);
+            if (rankDiff !== 0) return rankDiff;
+            return b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        const selected = cleanNames.slice(0, 3);
+        if (selected.length === 0) {
+            return FALLBACK_MODELS;
+        }
+
+        try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+                timestamp: Date.now(),
+                models: selected
+            }));
+        } catch (e) {}
+
+        return selected;
+    } catch (err) {
+        const isTimeout = err.name === 'AbortError';
+        const errMsg = isTimeout ? 'Request timed out (10s)' : (err.message || String(err));
+        logAiFailure('Gemini', 'models-list', isTimeout ? 408 : 'ERROR', errMsg);
+        return FALLBACK_MODELS;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+async function callGeminiDirect(contents, systemInstruction, generationConfig, tools, model = 'gemini-flash-latest', geminiKey = null) {
+    const key = geminiKey || getAppToken('nizhal_gemini_key');
+    if (!key) return { success: false, error: 'No Gemini API key set' };
 
     const payload = { contents, systemInstruction, generationConfig };
     if (tools) payload.tools = tools;
 
-    const headers = { 'Content-Type': 'application/json' };
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + geminiKey;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const cleanModel = String(model).replace(/^models\//, '');
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + cleanModel + ':generateContent?key=' + key;
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(payload)
-    });
-    const data = await response.json();
-    if (response.ok && data.candidates?.[0]?.content?.parts) {
-        const parts = data.candidates[0].content.parts;
-        const funcCallPart = parts.find(p => p.functionCall);
-        const text = parts.map(p => p.text).filter(Boolean).join('\n');
-        if (funcCallPart || text) {
-            return {
-                success: true,
-                text: text,
-                functionCall: funcCallPart ? funcCallPart.functionCall : null,
-                rawParts: parts
-            };
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (e) {}
+
+        if (response.ok && data?.candidates?.[0]?.content?.parts) {
+            const parts = data.candidates[0].content.parts;
+            const funcCallPart = parts.find(p => p.functionCall);
+            const text = parts.map(p => p.text).filter(Boolean).join('\n');
+            if (funcCallPart || text) {
+                return {
+                    success: true,
+                    text: text,
+                    functionCall: funcCallPart ? funcCallPart.functionCall : null,
+                    rawParts: parts,
+                    model: cleanModel
+                };
+            }
         }
+
+        const errMsg = data?.error?.message || data?.error || (response.statusText ? `HTTP ${response.status} ${response.statusText}` : `HTTP ${response.status}`);
+        return {
+            success: false,
+            status: response.status,
+            error: typeof errMsg === 'object' ? JSON.stringify(errMsg) : String(errMsg),
+            data: data
+        };
+    } catch (err) {
+        const isTimeout = err.name === 'AbortError';
+        const errMsg = isTimeout ? 'Request timed out (10s)' : (err.message || String(err));
+        return {
+            success: false,
+            status: isTimeout ? 408 : 0,
+            error: String(errMsg)
+        };
+    } finally {
+        clearTimeout(timeoutId);
     }
-    return { success: false, data, status: response.status };
 }
 
 async function callGroqDirect(messages, temperature = 0.7, max_tokens = 1024) {
     const groqKey = getAppToken('nizhal_groq_key');
     if (!groqKey) return { success: false, error: 'No Groq API key set' };
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + groqKey
-        },
-        body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: messages,
-            temperature: temperature,
-            max_tokens: max_tokens
-        })
-    });
-    const data = await response.json();
-    if (response.ok && data.choices?.[0]?.message?.content) {
-        return { success: true, text: data.choices[0].message.content };
+    const model = 'llama-3.3-70b-versatile';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + groqKey
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: messages,
+                temperature: temperature,
+                max_tokens: max_tokens
+            }),
+            signal: controller.signal
+        });
+
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (e) {}
+
+        if (response.ok && data?.choices?.[0]?.message?.content) {
+            return {
+                success: true,
+                text: data.choices[0].message.content,
+                model: model
+            };
+        }
+
+        const errMsg = data?.error?.message || data?.error || (response.statusText ? `HTTP ${response.status} ${response.statusText}` : `HTTP ${response.status}`);
+        return {
+            success: false,
+            status: response.status,
+            error: typeof errMsg === 'object' ? JSON.stringify(errMsg) : String(errMsg),
+            data: data
+        };
+    } catch (err) {
+        const isTimeout = err.name === 'AbortError';
+        const errMsg = isTimeout ? 'Request timed out (10s)' : (err.message || String(err));
+        return {
+            success: false,
+            status: isTimeout ? 408 : 0,
+            error: String(errMsg)
+        };
+    } finally {
+        clearTimeout(timeoutId);
     }
-    return { success: false, data, status: response.status };
 }
 
 async function callCerebrasDirect(messages, temperature = 0.7, max_tokens = 1024) {
     const cerebrasKey = getAppToken('nizhal_cerebras_key');
     if (!cerebrasKey) return { success: false, error: 'No Cerebras API key set' };
 
-    const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + cerebrasKey
-        },
-        body: JSON.stringify({
-            model: 'qwen-3.8-27b',
-            messages: messages,
-            temperature: temperature,
-            max_tokens: max_tokens
-        })
-    });
-    const data = await response.json();
-    if (response.ok && data.choices?.[0]?.message?.content) {
-        return { success: true, text: data.choices[0].message.content };
+    const model = 'qwen-3.8-27b';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+        const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + cerebrasKey
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: messages,
+                temperature: temperature,
+                max_tokens: max_tokens
+            }),
+            signal: controller.signal
+        });
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (e) {}
+
+        if (response.ok && data?.choices?.[0]?.message?.content) {
+            return { success: true, text: data.choices[0].message.content, model: model };
+        }
+        const errMsg = data?.error?.message || data?.error || (response.statusText ? `HTTP ${response.status} ${response.statusText}` : `HTTP ${response.status}`);
+        return { success: false, data, status: response.status, error: typeof errMsg === 'object' ? JSON.stringify(errMsg) : String(errMsg) };
+    } catch (err) {
+        const isTimeout = err.name === 'AbortError';
+        return { success: false, status: isTimeout ? 408 : 0, error: isTimeout ? 'Request timed out (10s)' : String(err.message || err) };
+    } finally {
+        clearTimeout(timeoutId);
     }
-    return { success: false, data, status: response.status };
 }
 
 async function callMistralDirect(messages, temperature = 0.7, max_tokens = 1024) {
     const mistralKey = getAppToken('nizhal_mistral_key');
     if (!mistralKey) return { success: false, error: 'No Mistral API key set' };
 
-    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + mistralKey
-        },
-        body: JSON.stringify({
-            model: 'mistral-small-latest',
-            messages: messages,
-            temperature: temperature,
-            max_tokens: max_tokens
-        })
-    });
-    const data = await response.json();
-    if (response.ok && data.choices?.[0]?.message?.content) {
-        return { success: true, text: data.choices[0].message.content };
+    const model = 'mistral-small-latest';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+        const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + mistralKey
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: messages,
+                temperature: temperature,
+                max_tokens: max_tokens
+            }),
+            signal: controller.signal
+        });
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (e) {}
+
+        if (response.ok && data?.choices?.[0]?.message?.content) {
+            return { success: true, text: data.choices[0].message.content, model: model };
+        }
+        const errMsg = data?.error?.message || data?.error || (response.statusText ? `HTTP ${response.status} ${response.statusText}` : `HTTP ${response.status}`);
+        return { success: false, data, status: response.status, error: typeof errMsg === 'object' ? JSON.stringify(errMsg) : String(errMsg) };
+    } catch (err) {
+        const isTimeout = err.name === 'AbortError';
+        return { success: false, status: isTimeout ? 408 : 0, error: isTimeout ? 'Request timed out (10s)' : String(err.message || err) };
+    } finally {
+        clearTimeout(timeoutId);
     }
-    return { success: false, data, status: response.status };
 }
 
 // --------------------------------------------------------------------------
-// Orchestrator Fallback Engine (Gemini -> Groq -> Cerebras -> Mistral)
+// Orchestrator Fallback Engine (Gemini Auto-detect -> Groq)
 // --------------------------------------------------------------------------
 
 async function callGeminiApi(requestBody) {
@@ -2098,13 +2296,27 @@ async function callGeminiApi(requestBody) {
     const tools = requestBody.tools;
     const hasImage = contents.some(c => c.parts && c.parts.some(p => p.inlineData));
 
-    // Provider 1: Gemini
-    try {
-        const res = await callGeminiDirect(contents, systemInstruction, generationConfig, tools);
-        if (res.success) return res;
-        console.warn('[AI Fallback Chain] Gemini call failed:', res);
-    } catch (err) {
-        console.warn('[AI Fallback Chain] Gemini exception:', err);
+    const geminiKey = getAppToken('nizhal_gemini_key');
+
+    // Provider 1: Gemini (Auto-detect models + retry on 503/429)
+    if (geminiKey) {
+        const geminiModels = await getGeminiModels(geminiKey);
+        for (const model of geminiModels) {
+            let res = await callGeminiDirect(contents, systemInstruction, generationConfig, tools, model, geminiKey);
+
+            if (!res.success && (res.status === 503 || res.status === 429)) {
+                logAiFailure('Gemini', model, res.status, res.error);
+                await new Promise(r => setTimeout(r, 2000));
+                res = await callGeminiDirect(contents, systemInstruction, generationConfig, tools, model, geminiKey);
+            }
+
+            if (res.success) {
+                console.log('[AI] answered by:', 'Gemini', model);
+                return res;
+            } else {
+                logAiFailure('Gemini', model, res.status, res.error);
+            }
+        }
     }
 
     // Skip fallbacks if image is present
@@ -2129,42 +2341,30 @@ async function callGeminiApi(requestBody) {
     const temp = generationConfig?.temperature || 0.7;
 
     // Provider 2: Groq (llama-3.3-70b-versatile)
-    if (getAppToken('nizhal_groq_key')) {
-        try {
-            console.log('[AI Fallback Chain] Trying Groq (llama-3.3-70b-versatile)...');
-            const res = await callGroqDirect(messages, temp, 1024);
-            if (res.success) return res;
-            console.warn('[AI Fallback Chain] Groq failed:', res);
-        } catch (err) {
-            console.warn('[AI Fallback Chain] Groq exception:', err);
+    const groqKey = getAppToken('nizhal_groq_key');
+    if (groqKey) {
+        const groqModel = 'llama-3.3-70b-versatile';
+        let groqRes = await callGroqDirect(messages, temp, 1024);
+
+        if (!groqRes.success && (groqRes.status === 503 || groqRes.status === 429)) {
+            logAiFailure('Groq', groqModel, groqRes.status, groqRes.error);
+            await new Promise(r => setTimeout(r, 2000));
+            groqRes = await callGroqDirect(messages, temp, 1024);
+        }
+
+        if (groqRes.success) {
+            console.log('[AI] answered by:', 'Groq', groqModel);
+            return groqRes;
+        } else {
+            logAiFailure('Groq', groqModel, groqRes.status, groqRes.error);
         }
     }
 
-    // Provider 3: Cerebras (qwen-3.8-27b)
-    if (getAppToken('nizhal_cerebras_key')) {
-        try {
-            console.log('[AI Fallback Chain] Trying Cerebras (qwen-3.8-27b)...');
-            const res = await callCerebrasDirect(messages, temp, 1024);
-            if (res.success) return res;
-            console.warn('[AI Fallback Chain] Cerebras failed:', res);
-        } catch (err) {
-            console.warn('[AI Fallback Chain] Cerebras exception:', err);
-        }
-    }
+    // Note: Cerebras and Mistral calls are skipped from active chain for now
 
-    // Provider 4: Mistral (mistral-small-latest)
-    if (getAppToken('nizhal_mistral_key')) {
-        try {
-            console.log('[AI Fallback Chain] Trying Mistral (mistral-small-latest)...');
-            const res = await callMistralDirect(messages, temp, 1024);
-            if (res.success) return res;
-            console.warn('[AI Fallback Chain] Mistral failed:', res);
-        } catch (err) {
-            console.warn('[AI Fallback Chain] Mistral exception:', err);
-        }
-    }
-
-    return { success: false, text: '⚠️ All AI providers failed or no valid API key configured. Please configure your API keys in Settings.' };
+    const busyMsg = 'Ella AI models-um busy-ah irukku, konjam neram kazhichu try pannunga';
+    showFriendlyToast(busyMsg);
+    return { success: false, text: busyMsg };
 }
 
 function linkify(text) {
