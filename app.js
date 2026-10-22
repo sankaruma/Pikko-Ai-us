@@ -1999,94 +1999,17 @@ function logAiFailure(provider, model, status, errorMessage) {
 }
 
 async function getGeminiModels(geminiKey) {
-    const CACHE_KEY = 'pikko_gemini_models';
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-    const FALLBACK_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
-
     try {
-        const cachedRaw = localStorage.getItem(CACHE_KEY);
-        if (cachedRaw) {
-            const cached = JSON.parse(cachedRaw);
-            if (cached && Array.isArray(cached.models) && cached.models.length > 0) {
-                const age = Date.now() - (cached.timestamp || 0);
-                if (age >= 0 && age < TWENTY_FOUR_HOURS) {
-                    return cached.models;
-                }
-            }
-        }
+        localStorage.removeItem('pikko_gemini_models');
     } catch (e) {}
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    try {
-        const url = 'https://generativelanguage.googleapis.com/v1beta/models?key=' + geminiKey;
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) {
-            let errMsg = `HTTP ${response.status}`;
-            try {
-                const errJson = await response.json();
-                if (errJson?.error?.message) errMsg = errJson.error.message;
-            } catch (e) {}
-            logAiFailure('Gemini', 'models-list', response.status, errMsg);
-            return FALLBACK_MODELS;
-        }
-
-        const data = await response.json();
-        const rawList = Array.isArray(data.models) ? data.models : [];
-
-        const excludeKeywords = ['image', 'tts', 'live', 'embedding', 'audio', 'thinking'];
-
-        const validModels = rawList.filter(m => {
-            const methods = Array.isArray(m.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
-            if (!methods.includes('generateContent')) return false;
-
-            const name = (m.name || '').toLowerCase();
-            if (!name.includes('flash')) return false;
-            if (excludeKeywords.some(kw => name.includes(kw))) return false;
-            return true;
-        });
-
-        function getModelRank(name) {
-            const lower = name.toLowerCase();
-            if (lower.includes('preview')) {
-                return lower.includes('lite') ? 3 : 4;
-            }
-            if (lower.includes('lite')) return 1;
-            return 2;
-        }
-
-        const cleanNames = validModels.map(m => (m.name || '').replace(/^models\//, ''));
-        cleanNames.sort((a, b) => {
-            const rankDiff = getModelRank(a) - getModelRank(b);
-            if (rankDiff !== 0) return rankDiff;
-            return b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
-        });
-
-        const selected = cleanNames.slice(0, 3);
-        if (selected.length === 0) {
-            return FALLBACK_MODELS;
-        }
-
-        try {
-            localStorage.setItem(CACHE_KEY, JSON.stringify({
-                timestamp: Date.now(),
-                models: selected
-            }));
-        } catch (e) {}
-
-        return selected;
-    } catch (err) {
-        const isTimeout = err.name === 'AbortError';
-        const errMsg = isTimeout ? 'Request timed out (10s)' : (err.message || String(err));
-        logAiFailure('Gemini', 'models-list', isTimeout ? 408 : 'ERROR', errMsg);
-        return FALLBACK_MODELS;
-    } finally {
-        clearTimeout(timeoutId);
-    }
+    return [
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-2.0-flash'
+    ];
 }
 
-async function callGeminiDirect(contents, systemInstruction, generationConfig, tools, model = 'gemini-flash-latest', geminiKey = null) {
+async function callGeminiDirect(contents, systemInstruction, generationConfig, tools, model = 'gemini-2.5-flash', geminiKey = null) {
     const key = geminiKey || getAppToken('nizhal_gemini_key');
     if (!key) return { success: false, error: 'No Gemini API key set' };
 
@@ -2094,7 +2017,7 @@ async function callGeminiDirect(contents, systemInstruction, generationConfig, t
     if (tools) payload.tools = tools;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
     const cleanModel = String(model).replace(/^models\//, '');
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + cleanModel + ':generateContent?key=' + key;
 
@@ -2135,7 +2058,7 @@ async function callGeminiDirect(contents, systemInstruction, generationConfig, t
         };
     } catch (err) {
         const isTimeout = err.name === 'AbortError';
-        const errMsg = isTimeout ? 'Request timed out (10s)' : (err.message || String(err));
+        const errMsg = isTimeout ? 'Request timed out (25s)' : (err.message || String(err));
         return {
             success: false,
             status: isTimeout ? 408 : 0,
@@ -2152,7 +2075,7 @@ async function callGroqDirect(messages, temperature = 0.7, max_tokens = 1024) {
 
     const model = 'llama-3.3-70b-versatile';
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     try {
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -2207,9 +2130,9 @@ async function callCerebrasDirect(messages, temperature = 0.7, max_tokens = 1024
     const cerebrasKey = getAppToken('nizhal_cerebras_key');
     if (!cerebrasKey) return { success: false, error: 'No Cerebras API key set' };
 
-    const model = 'qwen-3.8-27b';
+    const model = 'llama3.1-8b';
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     try {
         const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
@@ -2250,7 +2173,7 @@ async function callMistralDirect(messages, temperature = 0.7, max_tokens = 1024)
 
     const model = 'mistral-small-latest';
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     try {
         const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -2290,15 +2213,24 @@ async function callMistralDirect(messages, temperature = 0.7, max_tokens = 1024)
 // --------------------------------------------------------------------------
 
 async function callGeminiApi(requestBody) {
+    const geminiKey = getAppToken('nizhal_gemini_key');
+    const groqKey = getAppToken('nizhal_groq_key');
+    const cerebrasKey = getAppToken('nizhal_cerebras_key');
+    const mistralKey = getAppToken('nizhal_mistral_key');
+
+    // Guard: no keys set at all
+    if (!geminiKey && !groqKey && !cerebrasKey && !mistralKey) {
+        showFriendlyToast('API Key illa! Settings-la poi Gemini allathu Groq key save pannunga');
+        return { success: false, text: '⚠️ API Key illa! Settings-la poi unga Gemini allathu Groq API Key-a paste panni Save kudunga.' };
+    }
+
     const contents = requestBody.contents || [];
     const systemInstruction = requestBody.systemInstruction;
     const generationConfig = requestBody.generationConfig;
     const tools = requestBody.tools;
     const hasImage = contents.some(c => c.parts && c.parts.some(p => p.inlineData));
 
-    const geminiKey = getAppToken('nizhal_gemini_key');
-
-    // Provider 1: Gemini (Auto-detect models + retry on 503/429)
+    // Provider 1: Gemini (stable models + retry on 503/429)
     if (geminiKey) {
         const geminiModels = await getGeminiModels(geminiKey);
         for (const model of geminiModels) {
@@ -2306,7 +2238,7 @@ async function callGeminiApi(requestBody) {
 
             if (!res.success && (res.status === 503 || res.status === 429)) {
                 logAiFailure('Gemini', model, res.status, res.error);
-                await new Promise(r => setTimeout(r, 2000));
+                await new Promise(r => setTimeout(r, 1500));
                 res = await callGeminiDirect(contents, systemInstruction, generationConfig, tools, model, geminiKey);
             }
 
@@ -2319,7 +2251,7 @@ async function callGeminiApi(requestBody) {
         }
     }
 
-    // Skip fallbacks if image is present
+    // Skip text-only fallbacks if image is present
     if (hasImage) {
         return { success: false, text: '⚠️ Image analysis failed on Gemini. Multi-modal image input is only supported by Gemini.' };
     }
@@ -2341,14 +2273,13 @@ async function callGeminiApi(requestBody) {
     const temp = generationConfig?.temperature || 0.7;
 
     // Provider 2: Groq (llama-3.3-70b-versatile)
-    const groqKey = getAppToken('nizhal_groq_key');
     if (groqKey) {
         const groqModel = 'llama-3.3-70b-versatile';
         let groqRes = await callGroqDirect(messages, temp, 1024);
 
         if (!groqRes.success && (groqRes.status === 503 || groqRes.status === 429)) {
             logAiFailure('Groq', groqModel, groqRes.status, groqRes.error);
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 1500));
             groqRes = await callGroqDirect(messages, temp, 1024);
         }
 
@@ -2360,7 +2291,43 @@ async function callGeminiApi(requestBody) {
         }
     }
 
-    // Note: Cerebras and Mistral calls are skipped from active chain for now
+    // Provider 3: Cerebras
+    if (cerebrasKey) {
+        const cerebrasModel = 'llama3.1-8b';
+        let cerebrasRes = await callCerebrasDirect(messages, temp, 1024);
+
+        if (!cerebrasRes.success && (cerebrasRes.status === 503 || cerebrasRes.status === 429)) {
+            logAiFailure('Cerebras', cerebrasModel, cerebrasRes.status, cerebrasRes.error);
+            await new Promise(r => setTimeout(r, 1500));
+            cerebrasRes = await callCerebrasDirect(messages, temp, 1024);
+        }
+
+        if (cerebrasRes.success) {
+            console.log('[AI] answered by:', 'Cerebras', cerebrasModel);
+            return cerebrasRes;
+        } else {
+            logAiFailure('Cerebras', cerebrasModel, cerebrasRes.status, cerebrasRes.error);
+        }
+    }
+
+    // Provider 4: Mistral
+    if (mistralKey) {
+        const mistralModel = 'mistral-small-latest';
+        let mistralRes = await callMistralDirect(messages, temp, 1024);
+
+        if (!mistralRes.success && (mistralRes.status === 503 || mistralRes.status === 429)) {
+            logAiFailure('Mistral', mistralModel, mistralRes.status, mistralRes.error);
+            await new Promise(r => setTimeout(r, 1500));
+            mistralRes = await callMistralDirect(messages, temp, 1024);
+        }
+
+        if (mistralRes.success) {
+            console.log('[AI] answered by:', 'Mistral', mistralModel);
+            return mistralRes;
+        } else {
+            logAiFailure('Mistral', mistralModel, mistralRes.status, mistralRes.error);
+        }
+    }
 
     const busyMsg = 'Ella AI models-um busy-ah irukku, konjam neram kazhichu try pannunga';
     showFriendlyToast(busyMsg);

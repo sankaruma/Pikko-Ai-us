@@ -2,7 +2,7 @@
    PIKKO - SERVICE WORKER (PWA Offline & Push Notifications)
    ========================================================================== */
 
-const CACHE_NAME = 'pikko-v10';
+const CACHE_NAME = 'pikko-v11';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
