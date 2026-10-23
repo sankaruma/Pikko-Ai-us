@@ -1998,18 +1998,14 @@ function logAiFailure(provider, model, status, errorMessage) {
     console.warn('[AI]', String(provider), String(model), status || 'ERROR', cleanMsg);
 }
 
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest'];
+
 async function getGeminiModels(geminiKey) {
-    try {
-        localStorage.removeItem('pikko_gemini_models');
-    } catch (e) {}
-    return [
-        'gemini-2.5-flash',
-        'gemini-2.5-flash-lite',
-        'gemini-2.0-flash'
-    ];
+    try { localStorage.removeItem('pikko_gemini_models'); } catch (e) {}
+    return GEMINI_MODELS;
 }
 
-async function callGeminiDirect(contents, systemInstruction, generationConfig, tools, model = 'gemini-2.5-flash', geminiKey = null) {
+async function callGeminiDirect(contents, systemInstruction, generationConfig, tools, model = 'gemini-3.8-flash', geminiKey = null) {
     const key = geminiKey || getAppToken('nizhal_gemini_key');
     if (!key) return { success: false, error: 'No Gemini API key set' };
 
@@ -2236,9 +2232,13 @@ async function callGeminiApi(requestBody) {
         for (const model of geminiModels) {
             let res = await callGeminiDirect(contents, systemInstruction, generationConfig, tools, model, geminiKey);
 
+            if (!res.success && res.status === 404) {
+                logAiFailure('Gemini', model, res.status, res.error);
+                continue; // skip to next model immediately
+            }
             if (!res.success && (res.status === 503 || res.status === 429)) {
                 logAiFailure('Gemini', model, res.status, res.error);
-                await new Promise(r => setTimeout(r, 1500));
+                await new Promise(r => setTimeout(r, 2000));
                 res = await callGeminiDirect(contents, systemInstruction, generationConfig, tools, model, geminiKey);
             }
 
