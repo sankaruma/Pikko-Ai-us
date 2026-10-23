@@ -2,7 +2,7 @@
    PIKKO - SERVICE WORKER (PWA Offline & Push Notifications)
    ========================================================================== */
 
-const CACHE_NAME = 'pikko-v99';
+const CACHE_NAME = 'pikko-v100';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -41,6 +41,7 @@ self.addEventListener('activate', (event) => {
 
 // Fetch Event - Network only (no cache lock)
 self.addEventListener('fetch', (event) => {
+    if (!event.request.url.startsWith(self.location.origin)) return;
     return; // Bypass all caching; always load fresh from network
 });
 

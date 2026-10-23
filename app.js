@@ -1934,6 +1934,10 @@ async function saveAiApiKeys() {
     const cerebras = document.getElementById('cerebrasKeyInput')?.value;
     const mistral = document.getElementById('mistralKeyInput')?.value;
 
+    if (gemini && gemini.trim().startsWith('AQ.')) {
+        showFriendlyToast('Gemini API key must start with AIzaSy from Google AI Studio!');
+    }
+
     if (gemini !== undefined) saveAppToken('nizhal_gemini_key', gemini);
     if (groq !== undefined) saveAppToken('nizhal_groq_key', groq);
     if (cerebras !== undefined) saveAppToken('nizhal_cerebras_key', cerebras);
@@ -2011,11 +2015,8 @@ function logAiFailure(provider, model, status, errorMessage) {
     console.warn('[AI]', String(provider), String(model), status || 'ERROR', cleanMsg);
 }
 
-const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
-
 async function getGeminiModels(geminiKey) {
-    try { localStorage.removeItem('pikko_gemini_models'); } catch (e) {}
-    return GEMINI_MODELS;
+    return ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-flash-latest'];
 }
 
 async function callGeminiDirect(contents, systemInstruction, generationConfig, tools, model = 'gemini-2.5-flash', geminiKey = null) {
@@ -2225,8 +2226,8 @@ async function callGeminiApi(requestBody) {
 
     // Guard: wrong Gemini key format (AQ. instead of AIzaSy...)
     if (geminiKey && geminiKey.startsWith('AQ.')) {
-        showFriendlyToast('Thappaana Gemini Key! AIzaSy... nu start aagura key podunga');
-        return { success: false, text: '⚠️ Thappaana Gemini Key! Settings-la AQ... key-ku bathila AIzaSy... nu start aagura Google AI Studio key-a podunga.' };
+        showFriendlyToast('Gemini API key must start with AIzaSy from Google AI Studio!');
+        return { success: false, text: '⚠️ Thappaana Gemini Key! Gemini keys must start with AIzaSy from Google AI Studio. Settings-la sariyaana key podunga.' };
     }
 
     // Guard: no keys set at all
@@ -2241,27 +2242,22 @@ async function callGeminiApi(requestBody) {
     const tools = requestBody.tools;
     const hasImage = contents.some(c => c.parts && c.parts.some(p => p.inlineData));
 
-    // Provider 1: Gemini (stable models + retry on 503/429)
+    // Provider 1: Gemini (Fallback array: 2.5-flash -> 2.5-flash-lite -> 2.0-flash -> flash-latest)
     if (geminiKey) {
-        const geminiModels = await getGeminiModels(geminiKey);
+        const geminiModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-flash-latest'];
         for (const model of geminiModels) {
             let res = await callGeminiDirect(contents, systemInstruction, generationConfig, tools, model, geminiKey);
-
-            if (!res.success && res.status === 404) {
-                logAiFailure('Gemini', model, res.status, res.error);
-                continue; // skip to next model immediately
-            }
-            if (!res.success && (res.status === 503 || res.status === 429)) {
-                logAiFailure('Gemini', model, res.status, res.error);
-                await new Promise(r => setTimeout(r, 2000));
-                res = await callGeminiDirect(contents, systemInstruction, generationConfig, tools, model, geminiKey);
-            }
 
             if (res.success) {
                 console.log('[AI] answered by:', 'Gemini', model);
                 return res;
-            } else {
-                logAiFailure('Gemini', model, res.status, res.error);
+            }
+
+            logAiFailure('Gemini', model, res.status, res.error);
+
+            // If 503 (Service Unavailable) or 429 (Rate Limit), automatically try the next model in geminiModels
+            if (res.status === 503 || res.status === 429) {
+                continue;
             }
         }
     }
