@@ -2065,11 +2065,13 @@ async function callGeminiDirect(contents, systemInstruction, generationConfig, t
     }
 }
 
-async function callGroqDirect(messages, temperature = 0.7, max_tokens = 1024) {
+const GROQ_MODELS = ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'];
+
+async function callGroqDirect(messages, temperature = 0.7, max_tokens = 2048, modelIndex = 0) {
     const groqKey = getAppToken('nizhal_groq_key');
     if (!groqKey) return { success: false, error: 'No Groq API key set' };
 
-    const model = 'llama-3.3-70b-versatile';
+    const model = GROQ_MODELS[modelIndex] || GROQ_MODELS[0];
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
@@ -2090,38 +2092,32 @@ async function callGroqDirect(messages, temperature = 0.7, max_tokens = 1024) {
         });
 
         let data = null;
-        try {
-            data = await response.json();
-        } catch (e) {}
+        try { data = await response.json(); } catch (e) {}
 
-        if (response.ok && data?.choices?.[0]?.message?.content) {
-            return {
-                success: true,
-                text: data.choices[0].message.content,
-                model: model
-            };
+        if (response.ok && data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+            console.log('[AI] answered by:', 'Groq', model);
+            return { success: true, text: data.choices[0].message.content, model: model };
         }
 
-        const errMsg = data?.error?.message || data?.error || (response.statusText ? `HTTP ${response.status} ${response.statusText}` : `HTTP ${response.status}`);
-        return {
-            success: false,
-            status: response.status,
-            error: typeof errMsg === 'object' ? JSON.stringify(errMsg) : String(errMsg),
-            data: data
-        };
+        const rawErr = (data && data.error && data.error.message) ? data.error.message : ((data && data.error) ? data.error : (response.statusText ? ('HTTP ' + response.status + ' ' + response.statusText) : ('HTTP ' + response.status)));
+        const errStr = typeof rawErr === 'object' ? JSON.stringify(rawErr) : String(rawErr);
+        console.warn('[AI] Groq', model, response.status, errStr);
+
+        if ((response.status === 404 || response.status === 400) && modelIndex + 1 < GROQ_MODELS.length) {
+            clearTimeout(timeoutId);
+            return callGroqDirect(messages, temperature, max_tokens, modelIndex + 1);
+        }
+
+        return { success: false, status: response.status, error: errStr, data: data };
     } catch (err) {
         const isTimeout = err.name === 'AbortError';
-        const errMsg = isTimeout ? 'Request timed out (10s)' : (err.message || String(err));
-        return {
-            success: false,
-            status: isTimeout ? 408 : 0,
-            error: String(errMsg)
-        };
+        const errStr = isTimeout ? 'Request timed out (20s)' : String(err.message || err);
+        console.warn('[AI] Groq', model, isTimeout ? 408 : 0, errStr);
+        return { success: false, status: isTimeout ? 408 : 0, error: errStr };
     } finally {
         clearTimeout(timeoutId);
     }
 }
-
 async function callCerebrasDirect(messages, temperature = 0.7, max_tokens = 1024) {
     const cerebrasKey = getAppToken('nizhal_cerebras_key');
     if (!cerebrasKey) return { success: false, error: 'No Cerebras API key set' };
@@ -2272,22 +2268,20 @@ async function callGeminiApi(requestBody) {
 
     const temp = generationConfig?.temperature || 0.7;
 
-    // Provider 2: Groq (llama-3.3-70b-versatile)
+    // Provider 2: Groq (GROQ_MODELS fallback chain)
     if (groqKey) {
-        const groqModel = 'llama-3.3-70b-versatile';
-        let groqRes = await callGroqDirect(messages, temp, 1024);
+        let groqRes = await callGroqDirect(messages, temp, 2048);
 
         if (!groqRes.success && (groqRes.status === 503 || groqRes.status === 429)) {
-            logAiFailure('Groq', groqModel, groqRes.status, groqRes.error);
+            logAiFailure('Groq', groqRes.model || 'groq', groqRes.status, groqRes.error);
             await new Promise(r => setTimeout(r, 1500));
-            groqRes = await callGroqDirect(messages, temp, 1024);
+            groqRes = await callGroqDirect(messages, temp, 2048);
         }
 
         if (groqRes.success) {
-            console.log('[AI] answered by:', 'Groq', groqModel);
             return groqRes;
         } else {
-            logAiFailure('Groq', groqModel, groqRes.status, groqRes.error);
+            logAiFailure('Groq', groqRes.model || 'groq', groqRes.status, groqRes.error);
         }
     }
 
