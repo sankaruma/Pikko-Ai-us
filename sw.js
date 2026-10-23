@@ -2,7 +2,7 @@
    PIKKO - SERVICE WORKER (PWA Offline & Push Notifications)
    ========================================================================== */
 
-const CACHE_NAME = 'pikko-v11';
+const CACHE_NAME = 'pikko-v99';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -39,42 +39,9 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Fetch Event - Cache First with Network Fallback
+// Fetch Event - Network only (no cache lock)
 self.addEventListener('fetch', (event) => {
-    if (event.request.method !== 'GET') return;
-
-    event.respondWith(
-        caches.match(event.request).then((cachedResponse) => {
-            if (cachedResponse) {
-                // Return cached asset, update in background if online
-                fetch(event.request).then((networkResponse) => {
-                    if (networkResponse && networkResponse.status === 200) {
-                        caches.open(CACHE_NAME).then((cache) => {
-                            cache.put(event.request, networkResponse.clone());
-                        });
-                    }
-                }).catch(() => {/* Offline fallback */});
-
-                return cachedResponse;
-            }
-
-            return fetch(event.request).then((networkResponse) => {
-                if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                    return networkResponse;
-                }
-
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_NAME).then((cache) => {
-                    cache.put(event.request, responseToCache);
-                });
-
-                return networkResponse;
-            }).catch(() => {
-                if (event.request.mode === 'navigate') return caches.match('./index.html');
-                throw new Error('Offline and asset is not cached');
-            });
-        })
-    );
+    return; // Bypass all caching; always load fresh from network
 });
 
 // Push Notification Handling

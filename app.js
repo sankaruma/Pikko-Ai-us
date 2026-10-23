@@ -69,6 +69,21 @@ const MOBILE_FORMATTING_INSTRUCTION = ` Keep the reply SHORT and scannable on a 
 // 1. INITIALIZATION & LIFECYCLE
 // ==========================================================================
 document.addEventListener('DOMContentLoaded', () => {
+    // One-time startup cleanup
+    try {
+        if (navigator.serviceWorker) {
+            navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(sw => sw.unregister()));
+        }
+        if (window.caches) {
+            caches.keys().then(keys => keys.forEach(c => caches.delete(c)));
+        }
+        localStorage.removeItem('pikko_gemini_models');
+        const sbConf = localStorage.getItem('nizhal_supabase_config');
+        if (sbConf && sbConf.includes('sbvksvtvbdewxjwvsivo')) {
+            localStorage.removeItem('nizhal_supabase_config');
+        }
+    } catch (e) {}
+
     sessionStorage.setItem('nizhal_session_id', state.sessionId);
     initSupabaseIfConfigured();
     loadStoredData();
@@ -221,11 +236,9 @@ function showFriendlyToast(message) {
 function setupGlobalErrorHandlers() {
     window.addEventListener('error', event => {
         console.warn('[Global Error]', redactError(event.error || event.message));
-        showFriendlyToast('Konjam busy-ah irukku, thirumba try panren...');
     });
     window.addEventListener('unhandledrejection', event => {
         console.warn('[Unhandled Promise]', redactError(event.reason));
-        showFriendlyToast('Konjam busy-ah irukku, thirumba try panren...');
     });
 }
 
@@ -1998,14 +2011,14 @@ function logAiFailure(provider, model, status, errorMessage) {
     console.warn('[AI]', String(provider), String(model), status || 'ERROR', cleanMsg);
 }
 
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest'];
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
 
 async function getGeminiModels(geminiKey) {
     try { localStorage.removeItem('pikko_gemini_models'); } catch (e) {}
     return GEMINI_MODELS;
 }
 
-async function callGeminiDirect(contents, systemInstruction, generationConfig, tools, model = 'gemini-3.8-flash', geminiKey = null) {
+async function callGeminiDirect(contents, systemInstruction, generationConfig, tools, model = 'gemini-2.5-flash', geminiKey = null) {
     const key = geminiKey || getAppToken('nizhal_gemini_key');
     if (!key) return { success: false, error: 'No Gemini API key set' };
 
@@ -2209,6 +2222,12 @@ async function callGeminiApi(requestBody) {
     const groqKey = getAppToken('nizhal_groq_key');
     const cerebrasKey = getAppToken('nizhal_cerebras_key');
     const mistralKey = getAppToken('nizhal_mistral_key');
+
+    // Guard: wrong Gemini key format (AQ. instead of AIzaSy...)
+    if (geminiKey && geminiKey.startsWith('AQ.')) {
+        showFriendlyToast('Thappaana Gemini Key! AIzaSy... nu start aagura key podunga');
+        return { success: false, text: '⚠️ Thappaana Gemini Key! Settings-la AQ... key-ku bathila AIzaSy... nu start aagura Google AI Studio key-a podunga.' };
+    }
 
     // Guard: no keys set at all
     if (!geminiKey && !groqKey && !cerebrasKey && !mistralKey) {
